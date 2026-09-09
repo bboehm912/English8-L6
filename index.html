@@ -449,6 +449,167 @@ window.addEventListener('DOMContentLoaded', () => {
 
   initLesson(lessonData);
 });
-</script>
+let currentSlide = 1;
+let totalSlides = 1;
+let bellringers = [];
+
+const stockImagePool = [
+  'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=300&q=80',
+  'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=300&q=80',
+  'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=300&q=80',
+  'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=300&q=80',
+  'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=300&q=80',
+  'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=300&q=80'
+];
+
+const iconPool = ['🐢', '🌊', '🌱', '🗣️', '☯️', '📝'];
+
+function renderSlides(slides) {
+  const stage = document.getElementById('slide-stage');
+  stage.innerHTML = '';
+
+  slides.forEach((slide, index) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slide' + (index === 0 ? ' active' : '');
+    wrapper.id = `slide-${index + 1}`;
+
+    const imageUrl = slide.image || stockImagePool[index % stockImagePool.length];
+    const fallbackEmoji = slide.icon || iconPool[index % iconPool.length];
+
+    const visualMediaHTML = `
+      <img src="${imageUrl}" 
+           alt="${slide.title}" 
+           style="width:110px;height:110px;object-fit:cover;border-radius:50%;border:3px solid var(--primary);" 
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+      <span style="font-size: 2.8em; display: none; margin-bottom: 8px;">${fallbackEmoji}</span>
+    `;
+
+    wrapper.innerHTML = `
+      <div class="slide-header">
+        <h3 class="slide-title">${slide.title}</h3>
+        <span class="std-badge">${slide.standard || ''}</span>
+      </div>
+      <div class="slide-grid">
+        <div class="slide-body">
+          <ul>
+            ${(slide.bullets || []).map(b => `<li>${b}</li>`).join('')}
+          </ul>
+          ${slide.callout ? `<div class="callout-box"><strong style="color: var(--primary-dark);">Key Takeaway:</strong> ${slide.callout}</div>` : ''}
+        </div>
+        <div class="slide-visual-card">
+          ${visualMediaHTML}
+          ${slide.visual_caption ? `<small style="color: var(--text-muted); display: block; font-size: 0.82em; margin-top: 6px;">${slide.visual_caption}</small>` : ''}
+        </div>
+      </div>
+    `;
+    stage.appendChild(wrapper);
+  });
+}
+
+function initLesson(data) {
+  bellringers = data.bellringers || [];
+  totalSlides = (data.slides || []).length || 1;
+
+  document.getElementById('slide-tracker').innerText = `Slide 1 of ${totalSlides}`;
+
+  renderSlides(data.slides || []);
+  renderResources(data.resources || []);
+  renderForm(data.form || []);
+
+  randomizeBellringer();
+}
+
+function randomizeBellringer() {
+  if (!bellringers.length) return;
+  const idx = Math.floor(Math.random() * bellringers.length);
+  document.getElementById('bellringer-display').innerText = bellringers[idx];
+}
+
+function moveSlide(dir) {
+  const newSlide = currentSlide + dir;
+  if (newSlide < 1 || newSlide > totalSlides) return;
+
+  document.getElementById(`slide-${currentSlide}`).classList.remove('active');
+  currentSlide = newSlide;
+  document.getElementById(`slide-${currentSlide}`).classList.add('active');
+
+  document.getElementById('slide-tracker').innerText = `Slide ${currentSlide} of ${totalSlides}`;
+  document.getElementById('prev-btn').disabled = currentSlide === 1;
+  document.getElementById('next-btn').disabled = currentSlide === totalSlides;
+}
+
+function renderResources(resources) {
+  const container = document.getElementById('resource-list');
+  container.innerHTML = '';
+
+  resources.forEach(res => {
+    const card = document.createElement('div');
+    card.className = 'resource-card';
+    card.innerHTML = `
+      <div>
+        <strong>${res.title}</strong><br/>
+        <small>${res.description || ''}</small>
+      </div>
+      <a href="${res.file}" class="ctrl-btn" target="_blank">Open Resource</a>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function renderForm(fields) {
+  const form = document.getElementById('checkpoint-form');
+  const submitBtn = form.querySelector('.submit-btn');
+  form.innerHTML = '';
+
+  fields.forEach(field => {
+    const group = document.createElement('div');
+    group.className = 'form-group';
+    const id = `field_${field.label.replace(/\s+/g, '_').toLowerCase()}`;
+
+    let inputHTML = '';
+    if (field.type === 'short_text') {
+      inputHTML = `<input type="text" id="${id}" ${field.required ? 'required' : ''} />`;
+    } else if (field.type === 'long_text' || field.type === 'quote_citation') {
+      inputHTML = `<textarea id="${id}" rows="4" ${field.required ? 'required' : ''}></textarea>`;
+    } else if (field.type === 'date') {
+      inputHTML = `<input type="date" id="${id}" ${field.required ? 'required' : ''} />`;
+    } else if (field.type === 'multiple_choice' || field.type === 'rating_scale' || field.type === 'select_rubric') {
+      inputHTML = `<select id="${id}"><option value="">-- Select Option --</option>${(field.options || []).map(o => `<option>${o}</option>`).join('')}</select>`;
+    } else if (field.type === 'true_false') {
+      inputHTML = `<select id="${id}"><option value="">-- Select --</option><option>True</option><option>False</option></select>`;
+    } else if (field.type === 'checkbox' || field.type === 'checkbox_group' || field.type === 'multi_select') {
+      inputHTML = (field.options || []).map(o => `<label style="font-weight:normal;"><input type="checkbox" name="${id}" value="${o}" /> ${o}</label>`).join('<br/>');
+    } else {
+      inputHTML = `<input type="text" id="${id}" />`;
+    }
+
+    group.innerHTML = `<label for="${id}">${field.label}</label>${inputHTML}`;
+    form.appendChild(group);
+  });
+
+  if (submitBtn) form.appendChild(submitBtn);
+}
+
+function switchTab(key) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+  if (key === 'deck') {
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    document.getElementById('deck-tab').classList.add('active');
+  } else if (key === 'res') {
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    document.getElementById('res-tab').classList.add('active');
+  } else if (key === 'form') {
+    document.querySelectorAll('.tab-btn')[2].classList.add('active');
+    document.getElementById('form-tab').classList.add('active');
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const lessonData = {"day": 6, "title": "Day 6: The Outsiders - Chapter 1 Close Reading", "unit": "Unit 2: The Outsiders: Context & Conflict", "subject": "English 8", "bellringers": ["📖 What makes a narrator's voice feel authentic and believable in a story?", "🍿 Ponyboy loves movies because he can escape reality. Where do you go to escape stress?", "👁️ What is the difference between how a person views themselves versus how society views them?", "📝 Identify one word you would use to describe Ponyboy Curtis based on Chapter 1."], "slides": [{"title": "🎙️ Meet Ponyboy Curtis: The Narrator's Voice", "standard": "MN ELA 8.1.6.6", "bullets": ["Ponyboy narrates in the first-person point of view ('I', 'me', 'my').", "His voice combines emotional sensitivity with realistic street language.", "As an insider narrator, he gives us direct access to Greaser culture."], "callout": "🗣️ First-person narration lets us see the world through Ponyboy's sensitive eyes."}, {"title": "🍿 The Opening Scene: Walking Home Alone", "standard": "MN ELA 8.1.3.3", "bullets": ["The novel opens with Ponyboy walking out of a movie theater alone.", "Walking alone is dangerous for a Greaser due to potential Soc attacks.", "This scene instantly establishes the constant threat of violence in his world."], "callout": "⚠️ A simple walk home highlights the vulnerability Greasers face daily."}, {"title": "👨‍👦‍👦 The Curtis Brothers: Darry, Soda, and Ponyboy", "standard": "MN ELA 8.1.3.3", "bullets": ["After their parents' death, 20-year-old Darry raised his younger brothers.", "Sodapop is warm, handsome, and acts as the family peacekeeper.", "Darry is stern and demanding because he carries the legal responsibility."], "callout": "👨‍👦‍👦 Family survival forces young brothers into difficult adult responsibilities."}, {"title": "🐺 Introducing the Greaser Gang Members", "standard": "MN ELA 8.1.3.3", "bullets": ["Steve Randle: Soda's best friend, skilled with cars, dislikes Ponyboy.", "Two-Bit Mathews: The group comedian and master of petty shoplifting.", "Dallas (Dally) Winston: The hardened criminal who spent time in New York."], "callout": "🧩 Each gang member brings a distinct personality and defense mechanism."}, {"title": "💔 Johnny Cade: The Gang's Pet", "standard": "MN ELA 8.1.3.3", "bullets": ["Johnny was severely beaten by Socs prior to Chapter 1.", "He suffers from severe trauma, hypervigilance, and an abusive home life.", "The entire gang protects Johnny because he represents innocence."], "callout": "🛡️ Johnny's trauma makes him the emotional core that unifies the group."}, {"title": "🔍 Close Reading: Descriptive Language Analysis", "standard": "MN ELA 8.1.6.6", "bullets": ["Hinton uses vivid sensory details to characterize each gang member.", "Notice how physical descriptions reveal inner emotional states.", "Hair, eyes, and clothing choices signal deeper character traits."], "callout": "🎨 Author word choice turns physical descriptions into character psychology."}, {"title": "⚡ The Jump Scene: Tension and Relief", "standard": "MN ELA 8.1.3.3", "bullets": ["A red Corvair stalks Ponyboy as he walks home from the cinema.", "Socs pull a blade on him before his brothers rush in to rescue him.", "The immediate rescue demonstrates the gang's fierce protective instinct."], "callout": "💥 Violence is sudden, but group protection is swift and unwavering."}, {"title": "🎭 Ponyboy's Internal Conflict: Books vs. Street", "standard": "MN ELA 8.1.3.3", "bullets": ["Ponyboy gets good grades and loves literature, poetry, and sunsets.", "He struggles to reconcile his academic mind with his Greaser identity.", "Darry pressures Ponyboy to succeed so he can escape their neighborhood."], "callout": "🧠 Ponyboy feels caught between his intellectual passions and street identity."}, {"title": "🏷️ Social Stigma: 'Greasers Will Be Greasers'", "standard": "MN ELA 8.1.6.6", "bullets": ["Ponyboy reflects on how society judges Greasers as dirty hoods.", "He resents being labeled based on his hair and economic standing.", "Stereotypes obscure his true individuality and academic talent."], "callout": "🚫 External labels force individuals into boxes that ignore their true worth."}, {"title": "📝 Chapter 1 Close Reading Guide Activity", "standard": "MN ELA 8.1.6.6", "bullets": ["Open your Chapter 1 Close Reading Guide worksheet.", "Extract direct textual evidence describing Ponyboy's perspective on Darry.", "Annotate key descriptive passages that reveal character motivation."], "callout": "📖 Always back up character claims with specific quotes from the text."}, {"title": "🗣️ Analyzing Tone and Mood in Chapter 1", "standard": "MN ELA 8.1.6.6", "bullets": ["Tone is the narrator's attitude toward his subject and community.", "Mood is the emotional atmosphere created for the reader.", "Chapter 1 shifts from quiet reflection to intense threat to family warmth."], "callout": "🎭 Rapid shifts in mood mirror the unpredictable lives of the characters."}, {"title": "🏁 Day 6 Summary & Key Takeaways", "standard": "MN ELA 8.1.3.3", "bullets": ["Chapter 1 establishes Ponyboy's unique voice and introduces the main cast.", "Greasers rely on each other to survive physical threats and financial hardship.", "Tomorrow we map internal and external conflicts in detail."], "callout": "🎯 Great start! Character foundations are set for deep conflict analysis."}], "resources": [{"title": "Visualization Activity", "description": "Activity for Visualization.", "file": "Visualize the Setting_.pdf"}], "form": [{"field": "student_name", "label": "Student Name", "type": "short_text", "required": true}, {"field": "date", "label": "Date", "type": "date", "required": true}, {"field": "q1", "label": "From what point of view is 'The Outsiders' narrated, and who is the narrator?", "type": "short_text", "required": true}, {"field": "q2", "label": "Why was Ponyboy walking home alone at the beginning of Chapter 1?", "type": "multiple_choice", "options": ["He had just left work at the gas station.", "He was coming home from watching a movie.", "He ran away after an argument with Darry.", "He was searching for Johnny Cade."], "required": true}, {"field": "q3", "label": "Describe the relationship between Ponyboy and his oldest brother, Darry.", "type": "long_text", "required": true}, {"field": "q4", "label": "Why is Johnny Cade protected so fiercely by every member of the Greaser gang?", "type": "long_text", "required": true}, {"field": "q5", "label": "Ponyboy Curtis dislikes reading books and prefers street fighting over school.", "type": "true_false", "required": true}, {"field": "q6", "label": "Select two character traits that describe Sodapop Curtis.", "type": "checkbox", "options": ["Happy-go-lucky and handsome", "Cold, hardened criminal", "Understanding family peacekeeper", "Strict authority figure"], "required": true}, {"field": "q7", "label": "What car model pulled up alongside Ponyboy before he was jumped?", "type": "short_text", "required": true}, {"field": "q8", "label": "How does Hinton use physical descriptions in Chapter 1 to reveal character personalities?", "type": "long_text", "required": true}, {"field": "q9", "label": "Which gang member spent time in New York and is considered the most hardened?", "type": "multiple_choice", "options": ["Steve Randle", "Two-Bit Mathews", "Dallas (Dally) Winston", "Johnny Cade"], "required": true}, {"field": "q10", "label": "Self-Assessment: Analyzing Narrator Voice & Character Descriptions", "type": "rating_scale", "options": ["1 - Needs Support (Struggling to identify narrator POV or character traits)", "2 - Developing (Can identify basic character traits but needs help citing evidence)", "3 - Competent (Analyzes Ponyboy's voice and supports character analysis with text evidence)", "4 - Expert (Provides deep textual insights into narrative tone and character psychology)"], "required": true}]};
+
+  initLesson(lessonData);
+});
 </body>
 </html>
